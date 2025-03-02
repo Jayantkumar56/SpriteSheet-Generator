@@ -1,0 +1,3 @@
+[submodule "vendor/Quirk"]
+	path = vendor/Quirk
+	url = https://github.com/Jayantkumar56/Quirk
