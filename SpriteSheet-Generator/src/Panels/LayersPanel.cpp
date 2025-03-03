@@ -6,8 +6,7 @@
 #include "LayersPanel.h"
 #include "Frame.h"
 
-
-static bool CustomTextButton(const char* label, int id, ImFont* font, const ImVec2 pos, const ImVec2 padding, const ImVec2 size);
+static bool CustomTextButton(const char* label, int id, ImFont* font, const ImVec2 pos, const ImVec2 padding, const ImVec2 size, ImU32 color);
 
 void LayersPanel::SetImguiProperties(){
 	ImGuiWindowClass window_class;
@@ -20,9 +19,12 @@ void LayersPanel::OnImguiUiUpdate(){
 	auto  frame        = (SpriteGeneratorFrame*)GetParentFrame();
 	auto& currentPage  = frame->GetCurrentPage();
 
-	auto regionSize = ImGui::GetContentRegionAvail();
-	auto cursor     = ImGui::GetCursorScreenPos();
-	auto drawList   = ImGui::GetWindowDrawList();
+	const auto windowWidth = ImGui::GetWindowWidth();
+	const auto windowPos   = ImGui::GetWindowPos();
+	const auto regionSize  = ImGui::GetContentRegionAvail();
+	auto       cursor      = ImGui::GetCursorScreenPos();
+	const auto drawList    = ImGui::GetWindowDrawList();
+	int        buttonId    = 0;
 
 	// Title of Pages section
 	{
@@ -31,7 +33,7 @@ void LayersPanel::OnImguiUiUpdate(){
 
 		// title lable
 		auto titleFont = Quirk::FontManager::GetFont(Quirk::FontWeight::Medium, 25);
-		drawList->AddText(titleFont, titleFont->FontSize, cursor, 0xFFFFFFFF, titleLabel);
+		drawList->AddText(titleFont, titleFont->FontSize, cursor, 0xFFF8FF00, titleLabel);
 
 		// new page creation button
 		{
@@ -44,18 +46,17 @@ void LayersPanel::OnImguiUiUpdate(){
 			ImGui::PopFont();
 
 			// if button clicked adding new page to the list
-			if (CustomTextButton(label, 1, titleFont, buttonPos, buttonPadding, buttonSize)) {
+			if (CustomTextButton(label, buttonId++, titleFont, buttonPos, buttonPadding, buttonSize, 0xff303020)) {
 				frame->AddNewPage();
 			}
+
+			if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_NoSharedDelay))
+				ImGui::SetTooltip("Add new page", ImGui::GetStyle().HoverDelayNormal);
 		}
 
 		cursor.y += (titleFont->FontSize) + 8.0f;
-
 		// separator line
-		const float windowPosX  = ImGui::GetWindowPos().x;
-		const float windowWidth = ImGui::GetWindowWidth();
-		drawList->AddLine({ windowPosX, cursor.y }, { windowPosX + windowWidth, cursor.y }, 0xFF303030);
-
+		drawList->AddLine({ windowPos.x, cursor.y }, { windowPos.x + windowWidth, cursor.y }, 0xFF303030);
 		cursor.y += 10.0f;
 	}
 
@@ -64,8 +65,11 @@ void LayersPanel::OnImguiUiUpdate(){
 		const auto& pages = frame->GetPages();
 		const auto  font  = Quirk::FontManager::GetFont(Quirk::FontWeight::Regular, 22);
 
-		const ImVec2 buttonPadding   = { 20.0f, 10.0f };
-		const ImVec2 buttonSize      = { regionSize.x, font->FontSize + buttonPadding.y };
+		const ImVec2 buttonPadding    = { 20.0f, 10.0f };
+		const ImVec2 pagesSectionSize = { regionSize.x, 3 * (font->FontSize + buttonPadding.y + 5.0f) };
+
+		const ImVec2 regionSize = ImGui::GetContentRegionAvail();
+		const ImVec2 buttonSize = { regionSize.x, font->FontSize + buttonPadding.y };
 
 		const char* crossButtonLabel = "x";
 		ImGui::PushFont(font);
@@ -76,26 +80,102 @@ void LayersPanel::OnImguiUiUpdate(){
 		ImVec2 crossButtonPos = buttonPos + buttonSize - crossButtonSize;
 
 		for (size_t i = 0; i < pages.size(); ++i) {
-			// button to set current page
-			const char* label      = pages[i]->GetNamePtr();
+			const char* label = pages[i]->GetNamePtr();
+			ImU32 buttonColor = currentPage.get() == pages[i].get() ? 0xff303020 : 0x0000;
 
+			// button to set current page
 			ImGui::SetNextItemAllowOverlap();
-			if (CustomTextButton(label, (int)i, font, buttonPos, buttonPadding, buttonSize)) {
+			if (CustomTextButton(label, buttonId++, font, buttonPos, buttonPadding, buttonSize, buttonColor)) {
 				frame->SetCurrentPage(pages[i]);
 			}
 
 			// button to delete this page
-			if (CustomTextButton(crossButtonLabel, (int)i, font, crossButtonPos, buttonPadding, crossButtonSize)) {
+			if (CustomTextButton(crossButtonLabel, buttonId++, font, crossButtonPos, buttonPadding, crossButtonSize, buttonColor)) {
 				frame->DeletePage(pages[i--]);
 			}
+
+			if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_NoSharedDelay))
+				ImGui::SetTooltip("Delete page", ImGui::GetStyle().HoverDelayNormal);
 
 			buttonPos.y      += buttonSize.y + 5.0f;
 			crossButtonPos.y += buttonSize.y + 5.0f;
 		}
+
+		cursor.y = std::min(buttonPos.y, pagesSectionSize.y + cursor.y);
+
+		if (pages.size())
+			drawList->AddLine({ windowPos.x, cursor.y }, { windowPos.x + windowWidth, cursor.y }, 0xFF303030);
+
+		// display list of all the sprites in the current page 
+		if (currentPage != nullptr) {
+			cursor.y += 20.0f;
+
+			const auto& pageRegistry   = currentPage->GetRegistry();
+			const auto& spriteView     = pageRegistry.view<Quirk::SpriteRendererComponent>();
+			const auto& selectedEntity = frame->GetSelectedEntity();
+
+			char pageName[24];
+			strcpy_s(pageName, currentPage->GetNamePtr());
+
+			ImGui::PushFont(font);
+			ImGui::PushStyleColor(ImGuiCol_FrameBg, { 0.0f, 0.0f, 0.0f, 0.0f }      );
+			ImGui::PushStyleColor(ImGuiCol_Text,    { 0.729f, 0.729f, 0.729f, 1.0f });
+			ImGui::SetCursorScreenPos(cursor);
+
+			// input for name of the current page
+			if (ImGui::InputText("##PageNameInput", pageName, sizeof(pageName))) {
+				currentPage->SetName(pageName);
+			}
+
+			ImGui::PopStyleColor(2);
+			ImGui::PopFont();
+
+			// button to add new sprite
+			crossButtonPos = cursor + buttonSize - crossButtonSize;
+			if (CustomTextButton("+", buttonId++, font, crossButtonPos, buttonPadding, crossButtonSize, 0xff303020)) {
+				auto entity = currentPage->CreateEntity("New Sprite");
+				entity.AddComponent<Quirk::SpriteRendererComponent>();
+				frame->SetSelectedEntity(entity);
+			}
+
+			if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_NoSharedDelay))
+				ImGui::SetTooltip("Add new sprite", ImGui::GetStyle().HoverDelayNormal);
+
+			cursor.y      += buttonSize.y + 24.0f;
+			buttonPos      = cursor;
+			crossButtonPos = buttonPos + buttonSize - crossButtonSize;
+
+			for (auto e : spriteView) {
+				Quirk::Entity entity(e, currentPage.get());
+
+				ImU32 buttonColor = (selectedEntity == entity) ? 0xff303020 : 0x0000;
+				const std::string& label = entity.GetComponent<Quirk::TagComponent>().Tag;
+
+				// button to select sprite
+				ImGui::SetNextItemAllowOverlap();
+				if (CustomTextButton(label.c_str(), buttonId++, font, buttonPos, buttonPadding, buttonSize, buttonColor)) {
+					frame->SetSelectedEntity(entity);
+				}
+
+				// button to delete this sprite
+				if (CustomTextButton(crossButtonLabel, buttonId++, font, crossButtonPos, buttonPadding, crossButtonSize, buttonColor)) {
+					if (entity == selectedEntity)
+						frame->SetSelectedEntity(Quirk::Entity());
+
+					currentPage->DestroyEntity(entity);
+				}
+
+				if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_NoSharedDelay))
+					ImGui::SetTooltip("Delete Sprite", ImGui::GetStyle().HoverDelayNormal);
+
+				buttonPos.y      += buttonSize.y + 5.0f;
+				crossButtonPos.y += buttonSize.y + 5.0f;
+			}
+		}
 	}
 }
 
-static bool CustomTextButton(const char* label, int id, ImFont* font, const ImVec2 pos, const ImVec2 padding, const ImVec2 size) {
+static bool CustomTextButton(const char* label, int id, ImFont* font, const ImVec2 pos, const ImVec2 padding, const ImVec2 size, ImU32 color) {
 	ImGui::PushID(id);
 	ImGui::SetCursorScreenPos(pos);
 
@@ -107,11 +187,11 @@ static bool CustomTextButton(const char* label, int id, ImFont* font, const ImVe
 
 	auto drawList = ImGui::GetWindowDrawList();
 
-	ImU32 buttonColor = isHovered ? isActive ? 0xff303020 : 0xff272720 : 0xff303020;
+	ImU32 buttonColor = isHovered ? isActive ? 0xff303020 : 0xff272720 : color;
 	drawList->AddRectFilled(pos, buttonEnd, buttonColor, 8.0f);
 
 	ImVec2 textPos = pos + (padding * 0.5f);
-	drawList->AddText(font, font->FontSize, textPos, 0xFFFFFFFF, label);
+	drawList->AddText(font, font->FontSize, textPos, 0xFFBABABA, label);
 
 	ImGui::PopID();
 	return isClicked;

@@ -8,13 +8,17 @@
 
 class InspectorPanel : public Quirk::Panel {
 public:
-	InspectorPanel() : Panel("Inspector") { }
+	InspectorPanel() : 
+			Panel         ( "Inspector" ),
+			m_UploadImage ( Quirk::Texture2D::Create("assets/Images/Upload.png"))
+	{
+	}
 
-	virtual void SetImguiProperties()   override;
-	virtual void UnSetImguiProperties() override;
-	virtual void OnImguiUiUpdate()      override;
+	virtual void SetImguiProperties() override;
+	virtual void OnImguiUiUpdate()    override;
 
 private:
 	bool m_IsInFocus = false;
+	Quirk::Ref<Quirk::Texture2D> m_UploadImage;
 };
 

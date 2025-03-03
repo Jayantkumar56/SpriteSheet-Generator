@@ -30,6 +30,7 @@ private:
 
 		// SpriteGeneratorFrame related fonts 
 		FontManager::LoadFont( FontWeight::Medium,   25 );
+		FontManager::LoadFont( FontWeight::Medium,   22 );
 		FontManager::LoadFont( FontWeight::Regular,  22 );
 		FontManager::LoadFont( FontWeight::Bold,     18 );
 	}
