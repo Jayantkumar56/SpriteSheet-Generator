@@ -4,7 +4,9 @@
 
 #include "Quirk.h"
 #include "Theme.h"
+#include "Page.h"
 #include "TitleBar.h"
+#include "Panels/ExportPanel.h"
 #include "Panels/ViewPortPanel.h"
 #include "Panels/LayersPanel.h"
 #include "Panels/InspectorPanel.h"
@@ -12,9 +14,8 @@
 class SpriteGeneratorFrame : public Quirk::Frame {
 public:
 	SpriteGeneratorFrame(Quirk::WindowSpecification& spec) :
-			Frame            (spec),
-			m_SelectedEntity (),
-			m_CurrentPage    (nullptr)
+			Frame         ( spec    ),
+			m_CurrentPage ( nullptr )
 	{
 		Quirk::Renderer2D::InitRenderer();
 		Theme::SetTheme(ThemeName::DarkTheme);
@@ -24,50 +25,36 @@ public:
 		AddPanel< ViewPortPanel  >();
 		AddPanel< LayersPanel    >();
 		AddPanel< InspectorPanel >();
+		//AddPanel< ExportPanel    >();
 	}
+
+	virtual inline bool OnEvent(Quirk::Event& event) override { return m_CurrentPage->OnEvent(event); }
+	virtual inline void OnUpdate()                   override { m_CurrentPage->OnUpdate();            }
 
 	virtual void OnImguiUiUpdate() override {
 		// Disabling alt key for imgui to prevent navigation with alt key (problems when using editor cotrols)
 		ImGui::SetKeyOwner(ImGuiKey_LeftAlt, ImGuiKeyOwner_Any, ImGuiInputFlags_LockThisFrame);
 	}
 
-	inline const auto& GetCurrentPage()                  const noexcept { return m_CurrentPage;      }
-	inline const auto& GetPages()                        const noexcept { return m_Pages;            }
-	inline auto  GetSelectedEntity()                     const noexcept { return m_SelectedEntity;   }
-	inline void  SetSelectedEntity(Quirk::Entity entity)       noexcept { m_SelectedEntity = entity; }
+	inline const auto& GetCurrentPage() const noexcept { return m_CurrentPage; }
+	inline const auto& GetPages()       const noexcept { return m_Pages;       }
 
 	inline void AddNewPage() {
-		m_CurrentPage = Quirk::CreateRef<Quirk::Scene>("New Page", 512, 512);
+		m_CurrentPage = Quirk::CreateRef<Page>();
 		m_Pages.emplace_back(m_CurrentPage);
-		m_SelectedEntity = Quirk::Entity();
 	}
 
-	inline void SetCurrentPage(std::string& pageName) {
-		for (auto& page : m_Pages) {
-			if (page->GetName() == pageName) {
-				m_CurrentPage    = page;
-				m_SelectedEntity = Quirk::Entity();
-				return;
-			}
-		}
-
-		QK_WARN("Page with provided page name do not exists!");
-	}
-
-	inline void SetCurrentPage(const Quirk::Ref<Quirk::Scene>& page) {
+	inline void SetCurrentPage(const Quirk::Ref<Page>& page) {
 		if (page.get() != m_CurrentPage.get()) 
 			m_CurrentPage = page;
-
-		m_SelectedEntity = Quirk::Entity();
 	}
 
-	inline void DeletePage(const Quirk::Ref<Quirk::Scene>& page) {
+	inline void DeletePage(const Quirk::Ref<Page>& page) {
 		for (size_t i = 0; i < m_Pages.size(); ++i) {
 			if (m_Pages[i].get() == page.get()) {
 				// if page to delete is set as current page, clearing the m_CurrentPage
 				if (m_CurrentPage.get() == page.get()) {
-					m_CurrentPage    = nullptr;
-					m_SelectedEntity = Quirk::Entity();
+					m_CurrentPage = nullptr;
 				}
 
 				m_Pages.erase(m_Pages.begin() + i);
@@ -76,8 +63,6 @@ public:
 	}
 
 private:
-	Quirk::Entity m_SelectedEntity;
-
-	Quirk::Ref<Quirk::Scene> m_CurrentPage;
-	std::vector<Quirk::Ref<Quirk::Scene>> m_Pages;
+	Quirk::Ref<Page> m_CurrentPage;
+	std::vector<Quirk::Ref<Page>> m_Pages;
 };

@@ -80,7 +80,7 @@ void LayersPanel::OnImguiUiUpdate(){
 		ImVec2 crossButtonPos = buttonPos + buttonSize - crossButtonSize;
 
 		for (size_t i = 0; i < pages.size(); ++i) {
-			const char* label = pages[i]->GetNamePtr();
+			const char* label = pages[i]->GetName().c_str();
 			ImU32 buttonColor = currentPage.get() == pages[i].get() ? 0xff303020 : 0x0000;
 
 			// button to set current page
@@ -110,12 +110,8 @@ void LayersPanel::OnImguiUiUpdate(){
 		if (currentPage != nullptr) {
 			cursor.y += 20.0f;
 
-			const auto& pageRegistry   = currentPage->GetRegistry();
-			const auto& spriteView     = pageRegistry.view<Quirk::SpriteRendererComponent>();
-			const auto& selectedEntity = frame->GetSelectedEntity();
-
-			char pageName[24];
-			strcpy_s(pageName, currentPage->GetNamePtr());
+			const auto spriteView      = currentPage->GetSprites();
+			const auto& selectedEntity = currentPage->GetSelectedEntity();
 
 			ImGui::PushFont(font);
 			ImGui::PushStyleColor(ImGuiCol_FrameBg, { 0.0f, 0.0f, 0.0f, 0.0f }      );
@@ -123,9 +119,7 @@ void LayersPanel::OnImguiUiUpdate(){
 			ImGui::SetCursorScreenPos(cursor);
 
 			// input for name of the current page
-			if (ImGui::InputText("##PageNameInput", pageName, sizeof(pageName))) {
-				currentPage->SetName(pageName);
-			}
+			ImGui::InputText("##PageNameInput", &currentPage->GetName());
 
 			ImGui::PopStyleColor(2);
 			ImGui::PopFont();
@@ -133,9 +127,7 @@ void LayersPanel::OnImguiUiUpdate(){
 			// button to add new sprite
 			crossButtonPos = cursor + buttonSize - crossButtonSize;
 			if (CustomTextButton("+", buttonId++, font, crossButtonPos, buttonPadding, crossButtonSize, 0xff303020)) {
-				auto entity = currentPage->CreateEntity("New Sprite");
-				entity.AddComponent<Quirk::SpriteRendererComponent>();
-				frame->SetSelectedEntity(entity);
+				currentPage->CreateSprite("New Sprite");
 			}
 
 			if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_NoSharedDelay))
@@ -146,7 +138,7 @@ void LayersPanel::OnImguiUiUpdate(){
 			crossButtonPos = buttonPos + buttonSize - crossButtonSize;
 
 			for (auto e : spriteView) {
-				Quirk::Entity entity(e, currentPage.get());
+				Quirk::Entity entity(e, currentPage->GetScene());
 
 				ImU32 buttonColor = (selectedEntity == entity) ? 0xff303020 : 0x0000;
 				const std::string& label = entity.GetComponent<Quirk::TagComponent>().Tag;
@@ -154,15 +146,12 @@ void LayersPanel::OnImguiUiUpdate(){
 				// button to select sprite
 				ImGui::SetNextItemAllowOverlap();
 				if (CustomTextButton(label.c_str(), buttonId++, font, buttonPos, buttonPadding, buttonSize, buttonColor)) {
-					frame->SetSelectedEntity(entity);
+					currentPage->SetSelectedEntity(entity);
 				}
 
 				// button to delete this sprite
 				if (CustomTextButton(crossButtonLabel, buttonId++, font, crossButtonPos, buttonPadding, crossButtonSize, buttonColor)) {
-					if (entity == selectedEntity)
-						frame->SetSelectedEntity(Quirk::Entity());
-
-					currentPage->DestroyEntity(entity);
+					currentPage->DestroySprite(entity);
 				}
 
 				if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_NoSharedDelay))

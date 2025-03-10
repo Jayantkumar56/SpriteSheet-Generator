@@ -1,23 +1,14 @@
 
 
+#define IMGUI_DEFINE_MATH_OPERATORS
 
 #include "ViewPortPanel.h"
 #include "Frame.h"
 
 
-void ViewPortPanel::OnUpdate() {
-	if (m_IsInFocus) {
+static bool CustomDragInt2(int id, const char* labelX, int* valueX, const char* labelY, int* valueY,
+	                       ImFont* labelFont, ImFont* vlueFont, int vMin, int vMax);
 
-	}
-}
-
-bool ViewPortPanel::OnEvent(Quirk::Event& event) {
-	if (m_IsInFocus) {
-
-	}
-
-    return false;
-}
 
 void ViewPortPanel::SetImguiProperties() {
 	ImGuiWindowClass window_class;
@@ -32,15 +23,51 @@ void ViewPortPanel::UnSetImguiProperties() {
 }
 
 void ViewPortPanel::OnImguiUiUpdate() {
-	CheckAndHandleResize();
-	RenderViewport();
+	auto  frame       = (SpriteGeneratorFrame*)GetParentFrame();
+	auto& currentPage = frame->GetCurrentPage();
 
-	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, { 0.0f, 0.0f });
+	const auto fontRegular22 = Quirk::FontManager::GetFont(Quirk::FontWeight::Regular, 22);
+	const auto fontMedium25  = Quirk::FontManager::GetFont(Quirk::FontWeight::Medium,  25);
+	const auto fontMedium22  = Quirk::FontManager::GetFont(Quirk::FontWeight::Medium,  22);
+
+	auto cursorPos = ImGui::GetCursorScreenPos();
+
+	// handling the resizing of viewport
+	{
+		ImVec2 windowSize = ImGui::GetContentRegionAvail();
+
+		if (windowSize.x > 0 && windowSize.y > 0) {
+			if (m_PanelWidth != (int)windowSize.x || m_PanelHeight != (int)windowSize.y) {
+				m_PanelWidth  = (int)windowSize.x;
+				m_PanelHeight = (int)windowSize.y;
+
+				if (currentPage != nullptr) {
+					currentPage->OnViewportResize(m_PanelWidth, m_PanelHeight);
+					m_Frame->Resize(m_PanelWidth, m_PanelHeight);
+					Quirk::RenderCommands::UpdateViewPort(m_PanelWidth, m_PanelHeight);
+				}
+			}
+		}
+	}
+
+	// render the current frame to viewport
+	{
+		m_Frame->Bind();
+		m_Frame->ClearAttachments();
+
+		if (currentPage != nullptr)
+			currentPage->RenderPage();
+
+		m_Frame->Unbind();
+	}
+
+	ImGui::PushStyleVar  (ImGuiStyleVar_FramePadding, { 0.0f, 0.0f });
 	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
 	ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
 
-	ImVec2 imagePos = ImGui::GetCursorPos();
 	ImTextureID frameBuffer = (ImTextureID)(intptr_t)m_Frame->GetColorAttachment(0);
+
+	ImGui::SetNextItemAllowOverlap();
 	bool clickedOnImage = ImGui::ImageButton(
 		"viewportimage",
 		frameBuffer,
@@ -51,33 +78,104 @@ void ViewPortPanel::OnImguiUiUpdate() {
 
 	ImGui::PopStyleColor(2);
 	ImGui::PopStyleVar();
-}
 
-void ViewPortPanel::CheckAndHandleResize() {
-	ImVec2 windowSize = ImGui::GetContentRegionAvail();
+	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);
 
-	if (windowSize.x < 0 || windowSize.y < 0) {
-		return;
-	}
+	// input for width and height of the page
+	{
+		if (currentPage != nullptr) {
+			int width  = currentPage->GetWidth();
+			int height = currentPage->GetHeight();
 
-	if (m_PanelWidth != (int)windowSize.x || m_PanelHeight != (int)windowSize.y) {
-		m_PanelWidth  = (int)windowSize.x;
-		m_PanelHeight = (int)windowSize.y;
+			const auto windowWidth = ImGui::GetWindowWidth();
 
-		auto frame = (SpriteGeneratorFrame*)GetParentFrame();
+			cursorPos.x += 0.5f * (windowWidth - 400.0f);
+			cursorPos.y += 10.0f;
 
-		if (const auto& currentPage = frame->GetCurrentPage(); currentPage != nullptr) {
-			currentPage->OnViewportResize(m_PanelWidth, m_PanelHeight);
+			ImGui::PushStyleColor(ImGuiCol_FrameBg,            { 0.102f, 0.102f, 0.102f, 1.0f });
+			ImGui::PushStyleColor(ImGuiCol_FrameBgHovered,     { 0.102f, 0.102f, 0.102f, 1.0f });
+			ImGui::PushStyleColor(ImGuiCol_FrameBgActive,      { 0.102f, 0.102f, 0.102f, 1.0f });
+
+			ImGui::SetCursorScreenPos(cursorPos);
+			if (CustomDragInt2(0, "W", &width, "H", &height, fontMedium22, fontRegular22, 1, INT16_MAX)) {
+				currentPage->SetPageSize((uint16_t)width, (uint16_t)height);
+			}
+
+			ImGui::PopStyleColor(3);
 		}
-
-		m_Frame->Resize(m_PanelWidth, m_PanelHeight);
-		Quirk::RenderCommands::UpdateViewPort(m_PanelWidth, m_PanelHeight);
 	}
+
+	// button to start exporting current page
+	{
+		if (currentPage != nullptr) {
+			auto& styles = ImGui::GetStyle();
+
+			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, { 10.0f, styles.FramePadding.y });
+			ImGui::PushStyleColor(ImGuiCol_Button,          { 0.102f, 0.102f, 0.102f, 1.0f });
+			ImGui::PushStyleColor(ImGuiCol_ButtonHovered,   { 0.132f, 0.132f, 0.132f, 1.0f });
+			ImGui::PushStyleColor(ImGuiCol_ButtonActive,    { 0.102f, 0.102f, 0.102f, 1.0f });
+
+			ImGui::SameLine(0.0f, 30.0f);
+			if (ImGui::Button("Export")) {
+				frame->AddPanel<ExportPanel>(currentPage);
+				Quirk::RenderCommands::UpdateViewPort(m_PanelWidth, m_PanelHeight);
+			}
+
+			ImGui::PopStyleVar();
+			ImGui::PopStyleColor(3);
+		}
+	}
+
+	ImGui::PopStyleVar();
 }
 
-void ViewPortPanel::RenderViewport() {
-	m_Frame->Bind();
-	m_Frame->ClearAttachments();
+static bool CustomDragInt2(int id, const char* labelX, int* valueX, const char* labelY, int* valueY,
+	                       ImFont* labelFont, ImFont* vlueFont, int vMin, int vMax)
+{
+	bool valueChanged = false;
+	ImGui::PushID(id);
 
-	m_Frame->Unbind();
+	auto drawList     = ImGui::GetWindowDrawList();
+	auto cursorPos    = ImGui::GetCursorScreenPos();
+	auto framepadding = ImGui::GetStyle().FramePadding;
+
+	// dragFloatSpacing :- space between first dragfloat and second dragfloat
+	float  dragFloatSpacing = 32.0f;
+	float  labelPaddingX    = 8.0f;
+	float  dragFloatWidth   = 100.0f;
+
+	ImVec2 labelSize    = { 25.0f, framepadding.y * 2 };
+	ImVec2 dragFloatEnd = { cursorPos.x + labelSize.x + labelPaddingX + dragFloatWidth, cursorPos.y + ImGui::GetFrameHeight() };
+
+	// first dragfloat
+	{
+		drawList->AddRectFilled(cursorPos, dragFloatEnd, 0xff030303, 5.0f);
+
+		cursorPos.x += labelPaddingX;
+		drawList->AddText(labelFont, labelFont->FontSize, cursorPos + framepadding, 0xFFFFFFFF, labelX);
+
+		ImGui::SetCursorScreenPos({ cursorPos.x + labelSize.x, cursorPos.y });
+		ImGui::SetNextItemWidth(dragFloatWidth);
+		valueChanged |= ImGui::DragInt("##X", valueX, 1.0f, vMin, vMax);
+	}
+
+	cursorPos.x    += dragFloatSpacing + labelSize.x + dragFloatWidth - labelPaddingX;
+	dragFloatEnd.x += dragFloatSpacing + labelSize.x + dragFloatWidth;
+
+	// second dragfloat
+	{
+		drawList->AddRectFilled(cursorPos, dragFloatEnd, 0xff030303, 5.0f);
+
+		cursorPos.x += labelPaddingX;
+		drawList->AddText(labelFont, labelFont->FontSize, cursorPos + framepadding, 0xFFFFFFFF, labelY);
+
+		ImGui::SetCursorScreenPos({ cursorPos.x + labelSize.x, cursorPos.y });
+		ImGui::SetNextItemWidth(dragFloatWidth);
+		valueChanged |= ImGui::DragInt("##Y", valueY, 1.0f, vMin, vMax);
+	}
+
+	ImGui::PopID();
+	return valueChanged;
 }
+
+

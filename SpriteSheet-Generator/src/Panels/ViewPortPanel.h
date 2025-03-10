@@ -21,15 +21,9 @@ public:
 		});
 	}
 
-	virtual void OnUpdate()                   override;
-	virtual bool OnEvent(Quirk::Event& event) override;
-	virtual void SetImguiProperties()         override;
-	virtual void UnSetImguiProperties()       override;
-	virtual void OnImguiUiUpdate()            override;
-
-private:
-	void CheckAndHandleResize();
-	void RenderViewport();
+	virtual void SetImguiProperties()   override;
+	virtual void UnSetImguiProperties() override;
+	virtual void OnImguiUiUpdate()      override;
 
 private:
 	uint16_t m_PanelWidth, m_PanelHeight;

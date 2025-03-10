@@ -4,7 +4,10 @@
 #include "InspectorPanel.h"
 #include "Frame.h"
 
-static void CustomDragFloat2(int id, const char* labelX, float* valueX, const char* labelY, float* valueY, ImFont* labelFont, ImFont* vlueFont);
+
+static void CustomDragFloat2(int id, const char* labelX, float* valueX, const char* labelY, float* valueY, 
+							 ImFont* labelFont, ImFont* vlueFont, float vMin = 0.0f, float vMax = 0.0f);
+
 
 void InspectorPanel::SetImguiProperties() {
 	ImGuiWindowClass window_class;
@@ -13,9 +16,13 @@ void InspectorPanel::SetImguiProperties() {
 }
 
 void InspectorPanel::OnImguiUiUpdate() {
-	const auto frame    = (SpriteGeneratorFrame*)GetParentFrame();
-	auto selectedEntity = frame->GetSelectedEntity();
+	const auto frame = (SpriteGeneratorFrame*)GetParentFrame();
 
+	auto& currentPage = frame->GetCurrentPage();
+	if (currentPage == nullptr)
+		return;
+
+	auto selectedEntity = currentPage->GetSelectedEntity();
 	if (selectedEntity.IsInvalidEntity())
 		return;
 
@@ -36,17 +43,11 @@ void InspectorPanel::OnImguiUiUpdate() {
 	{
 		std::string& entityName = selectedEntity.GetComponent<Quirk::TagComponent>().Tag;
 
-		char name[24];
-		strcpy_s(name, entityName.c_str());
-
 		ImGui::PushFont(fontRegular22);
 		ImGui::PushStyleColor(ImGuiCol_FrameBg, { 0.0f, 0.0f, 0.0f, 0.0f });
 		ImGui::PushStyleColor(ImGuiCol_Text,    { 0.651f, 0.651f, 0.651f, 1.0f });
 
-		// input for name of the current page
-		if (ImGui::InputText("##PageNameInput", name, sizeof(name))) {
-			entityName = std::string(name);
-		}
+		ImGui::InputText("##PageNameInput", &entityName);
 
 		ImGui::PopStyleColor(2);
 		ImGui::PopFont();
@@ -84,7 +85,7 @@ void InspectorPanel::OnImguiUiUpdate() {
 			cursorPos.y += ImGui::GetTextLineHeightWithSpacing() + 12.0f;
 			ImGui::SetCursorScreenPos(cursorPos);
 
-			CustomDragFloat2(1, "W", &spriteTransforms.Scale.x, "H", &spriteTransforms.Scale.y, fontMedium22, fontRegular22);
+			CustomDragFloat2(1, "W", &spriteTransforms.Scale.x, "H", &spriteTransforms.Scale.y, fontMedium22, fontRegular22, 0.0f, FLT_MAX);
 
 			cursorPos.y += ImGui::GetTextLineHeightWithSpacing() + 20.0f;
 			drawList->AddLine({ windowPos.x, cursorPos.y }, { windowPos.x + windowWidth, cursorPos.y }, 0xFF303030);
@@ -104,10 +105,9 @@ void InspectorPanel::OnImguiUiUpdate() {
 			cursorPos.y += 16.0f;
 			drawList->AddText(fontMedium25, fontMedium25->FontSize, cursorPos, 0xFFF8FF00, "Image Properties");
 
-			const char* labelTintColor = "Tint Color";
-			const char* labelImageName = "Image";
-
-			auto labelColumnWidth = std::max(ImGui::CalcTextSize(labelTintColor).x, ImGui::CalcTextSize(labelImageName).x);
+			const char* labelTintColor   = "Tint Color";
+			const char* labelImageName   = "Image";
+			const auto  labelColumnWidth = std::max(ImGui::CalcTextSize(labelTintColor).x, ImGui::CalcTextSize(labelImageName).x);
 
 			// tint color
 			{
@@ -152,8 +152,8 @@ void InspectorPanel::OnImguiUiUpdate() {
 					ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {8.0f, framePadding.y});
 					ImGui::PushFont(fontRegular22);
 
-					float availWidth     = ImGui::GetContentRegionAvail().x;
-					float ImageNameWidth = availWidth * 0.8f;
+					const float availWidth     = ImGui::GetContentRegionAvail().x;
+					const float ImageNameWidth = availWidth * 0.8f;
 
 					ImGui::SetNextItemWidth(ImageNameWidth);
 					ImGui::InputText("##ImageName", imageName.data(), imageName.size(), ImGuiInputTextFlags_ReadOnly);
@@ -164,10 +164,10 @@ void InspectorPanel::OnImguiUiUpdate() {
 
 				// Image upload button
 				{
-					float buttonSize = 22.0f;
+					const float buttonSize = 22.0f;
 
 					ImGui::SameLine(0.0f, 3.0f);
-					ImTextureID uploadImageIconId = (ImTextureID)(intptr_t)m_UploadImage->GetRendererId();
+					const ImTextureID uploadImageIconId = (ImTextureID)(intptr_t)m_UploadImage->GetRendererId();
 
 					if (ImGui::ImageButton("uploadImageButton", uploadImageIconId, { buttonSize, buttonSize }, { 0, 1 }, { 1, 0 })) {
 						Quirk::FileFilter filters[] = {
@@ -202,17 +202,19 @@ void InspectorPanel::OnImguiUiUpdate() {
 	}
 }
 
-static void CustomDragFloat2(int id, const char* labelX, float* valueX, const char* labelY, float* valueY, ImFont* labelFont, ImFont* vlueFont) {
+static void CustomDragFloat2(int id, const char* labelX, float* valueX, const char* labelY, float* valueY,
+							 ImFont* labelFont, ImFont* vlueFont, float vMin, float vMax) 
+{
 	ImGui::PushID(id);
 
-	auto drawList     = ImGui::GetWindowDrawList();
-	auto cursorPos    = ImGui::GetCursorScreenPos();
-	auto framepadding = ImGui::GetStyle().FramePadding;
+	const auto drawList     = ImGui::GetWindowDrawList();
+	const auto framepadding = ImGui::GetStyle().FramePadding;
+	auto cursorPos          = ImGui::GetCursorScreenPos();
 
 	// dragFloatSpacing :- space between first dragfloat and second dragfloat
-	float  dragFloatSpacing = 32.0f;
-	float  labelPaddingX    = 8.0f;
-	float  dragFloatWidth   = 100.0f;
+	const float  dragFloatSpacing = 32.0f;
+	const float  labelPaddingX    = 8.0f;
+	const float  dragFloatWidth   = 100.0f;
 
 	ImVec2 labelSize    = { 25.0f, framepadding.y * 2 };
 	ImVec2 dragFloatEnd = { cursorPos.x + labelSize.x + labelPaddingX + dragFloatWidth, cursorPos.y + ImGui::GetFrameHeight() };
@@ -226,7 +228,7 @@ static void CustomDragFloat2(int id, const char* labelX, float* valueX, const ch
 
 		ImGui::SetCursorScreenPos({ cursorPos.x + labelSize.x, cursorPos.y });
 		ImGui::SetNextItemWidth(dragFloatWidth);
-		ImGui::DragFloat("##X", valueX, 1.0f, 0.0f, FLT_MAX, "%0.f");
+		ImGui::DragFloat("##X", valueX, 1.0f, vMin, vMax, "%0.f");
 	}
 
 	cursorPos.x    += dragFloatSpacing + labelSize.x + dragFloatWidth - labelPaddingX;
@@ -241,7 +243,7 @@ static void CustomDragFloat2(int id, const char* labelX, float* valueX, const ch
 
 		ImGui::SetCursorScreenPos({ cursorPos.x + labelSize.x, cursorPos.y });
 		ImGui::SetNextItemWidth(dragFloatWidth);
-		ImGui::DragFloat("##Y", valueY, 1.0f, 0.0f, FLT_MAX, "%0.f");
+		ImGui::DragFloat("##Y", valueY, 1.0f, vMin, vMax, "%0.f");
 	}
 
 	ImGui::PopID();
