@@ -25,7 +25,6 @@ public:
 		AddPanel< ViewPortPanel  >();
 		AddPanel< LayersPanel    >();
 		AddPanel< InspectorPanel >();
-		//AddPanel< ExportPanel    >();
 	}
 
 	virtual inline bool OnEvent(Quirk::Event& event) override { return m_CurrentPage->OnEvent(event); }
@@ -42,6 +41,12 @@ public:
 	inline void AddNewPage() {
 		m_CurrentPage = Quirk::CreateRef<Page>();
 		m_Pages.emplace_back(m_CurrentPage);
+
+		if (auto* viewportPanel = static_cast<ViewPortPanel*>(GetPanel("ViewPort")); viewportPanel != nullptr) {
+			auto viewportWidth  = viewportPanel->GetWidth();
+			auto viewportHeight = viewportPanel->GetHeight();
+			m_CurrentPage->OnViewportResize(viewportWidth, viewportHeight);
+		}
 	}
 
 	inline void SetCurrentPage(const Quirk::Ref<Page>& page) {

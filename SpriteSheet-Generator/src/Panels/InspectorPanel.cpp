@@ -5,7 +5,7 @@
 #include "Frame.h"
 
 
-static void CustomDragFloat2(int id, const char* labelX, float* valueX, const char* labelY, float* valueY, 
+static bool CustomDragFloat2(int id, const char* labelX, float* valueX, const char* labelY, float* valueY, 
 							 ImFont* labelFont, ImFont* vlueFont, float vMin = 0.0f, float vMax = 0.0f);
 
 
@@ -71,7 +71,12 @@ void InspectorPanel::OnImguiUiUpdate() {
 			cursorPos.y += ImGui::GetTextLineHeightWithSpacing() + 12.0f;
 			ImGui::SetCursorScreenPos(cursorPos);
 
-			CustomDragFloat2(0, "X", &spriteTransforms.Translation.x, "Y", &spriteTransforms.Translation.y, fontMedium22, fontRegular22);
+			float u = spriteTransforms.Translation.x - (spriteTransforms.Scale.x * 0.5f);
+			float v = spriteTransforms.Translation.y - (spriteTransforms.Scale.y * 0.5f);
+			if (CustomDragFloat2(0, "U", &u, "V", &v, fontMedium22, fontRegular22)) {
+				spriteTransforms.Translation.x = u + (spriteTransforms.Scale.x * 0.5f);
+				spriteTransforms.Translation.y = v + (spriteTransforms.Scale.y * 0.5f);
+			}
 
 			cursorPos.y += ImGui::GetTextLineHeightWithSpacing() + 20.0f;
 			drawList->AddLine({ windowPos.x, cursorPos.y }, { windowPos.x + windowWidth, cursorPos.y }, 0xFF303030);
@@ -202,9 +207,10 @@ void InspectorPanel::OnImguiUiUpdate() {
 	}
 }
 
-static void CustomDragFloat2(int id, const char* labelX, float* valueX, const char* labelY, float* valueY,
+static bool CustomDragFloat2(int id, const char* labelX, float* valueX, const char* labelY, float* valueY,
 							 ImFont* labelFont, ImFont* vlueFont, float vMin, float vMax) 
 {
+	bool valueChanged = false;
 	ImGui::PushID(id);
 
 	const auto drawList     = ImGui::GetWindowDrawList();
@@ -228,7 +234,7 @@ static void CustomDragFloat2(int id, const char* labelX, float* valueX, const ch
 
 		ImGui::SetCursorScreenPos({ cursorPos.x + labelSize.x, cursorPos.y });
 		ImGui::SetNextItemWidth(dragFloatWidth);
-		ImGui::DragFloat("##X", valueX, 1.0f, vMin, vMax, "%0.f");
+		valueChanged |= ImGui::DragFloat("##X", valueX, 1.0f, vMin, vMax, "%0.f");
 	}
 
 	cursorPos.x    += dragFloatSpacing + labelSize.x + dragFloatWidth - labelPaddingX;
@@ -243,8 +249,9 @@ static void CustomDragFloat2(int id, const char* labelX, float* valueX, const ch
 
 		ImGui::SetCursorScreenPos({ cursorPos.x + labelSize.x, cursorPos.y });
 		ImGui::SetNextItemWidth(dragFloatWidth);
-		ImGui::DragFloat("##Y", valueY, 1.0f, vMin, vMax, "%0.f");
+		valueChanged |= ImGui::DragFloat("##Y", valueY, 1.0f, vMin, vMax, "%0.f");
 	}
 
 	ImGui::PopID();
+	return valueChanged;
 }

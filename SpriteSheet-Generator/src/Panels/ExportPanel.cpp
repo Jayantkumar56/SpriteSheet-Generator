@@ -4,17 +4,21 @@
 
 #include "Frame.h"
 #include "ExportPanel.h"
+#include "PageSerializer.h"
 
 
 static bool CustomTextButton(const char* label, ImVec2 position, ImVec2 size, ImVec2 padding);
 static void FlipImageVertically(uint8_t* image, int width, int height, int channels);
 
 
-ExportPanel::ExportPanel(Quirk::Ref<Page> currentPage) : 
-		Panel("Export Panel"),
-		m_SpriteSheetName(currentPage->GetName() + ".png")
+ExportPanel::ExportPanel(Quirk::Ref<Page> currentPage) :
+		Panel                  ( "Export Panel"                                         ),
+		m_SpriteSheetPath      ( std::filesystem::current_path().string()               ),
+		m_FolderSelectionImage ( Quirk::Texture2D::Create("assets/Images/Download.png") ),
+		m_SpriteSheetName      ( currentPage->GetName()                                 ),
+		m_SpriteSheetScene     ( Quirk::Scene::Copy(currentPage->GetScene())            )
 {
-	SetWindowFlags(ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize);
+	SetWindowFlags(ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse);
 
 	m_PageWidth   = currentPage->GetWidth();
 	m_PageHeight  = currentPage->GetHeight();
@@ -35,7 +39,6 @@ void ExportPanel::SetImguiProperties() {
 	window_class.DockNodeFlagsOverrideSet = ImGuiDockNodeFlags_NoTabBar;
 	ImGui::SetNextWindowClass(&window_class);
 
-	ImGui::SetNextWindowSize({ 800.0f, 650.0f });
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 }
 
@@ -44,18 +47,18 @@ void ExportPanel::UnSetImguiProperties() {
 }
 
 void ExportPanel::OnImguiUiUpdate() {
-	const auto  frame           = (SpriteGeneratorFrame*)GetParentFrame();
+	const auto drawList = ImGui::GetWindowDrawList();
 
-	const auto availableRegion = ImGui::GetContentRegionAvail();
-	auto         cursorPos     = ImGui::GetCursorScreenPos();
-	const ImVec2 windowPadding = { 20.0f, 10.f };
+	const auto  frame           = (SpriteGeneratorFrame*)GetParentFrame();
+	const auto availableRegion  = ImGui::GetContentRegionAvail();
+	auto         cursorPos      = ImGui::GetCursorScreenPos();
+	const ImVec2 windowPadding  = { 20.0f, 10.f };
 
 	// export button properties
 	const char*  buttonLabel   = "Export";
 	const auto   labelSize     = ImGui::CalcTextSize(buttonLabel);
 	const ImVec2 buttonPadding = { 20.0f, 10.0f };
 	const ImVec2 buttonSize    = labelSize + (buttonPadding * 2.0f);
-	const ImVec2 buttonPos     = cursorPos + availableRegion - buttonSize;
 	// export button properties
 
 	// properties for final image to export
@@ -80,28 +83,59 @@ void ExportPanel::OnImguiUiUpdate() {
 	// display the final spriteSheet
 	{
 		const auto spriteSheet = m_SpriteSheet->GetColorAttachment(0);
+		drawList->AddImage((ImTextureID)(intptr_t)spriteSheet, imagePos, imagePos + imageSize, { 0, 1 }, { 1, 0 });
+	}
 
-		ImGui::PushStyleVar  (ImGuiStyleVar_FramePadding, { 0.0f, 0.0f });
-		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-		ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+	// updating the cursorPos to point to the end of the spritesheet image
+	cursorPos.x += 30.0f;
+	cursorPos.y  = imagePos.y + imageSize.y + imageButtonSpacing + imageMargin.y * 0.5f;
 
-		ImGui::SetCursorScreenPos(imagePos);
-		ImGui::ImageButton("spriteSheet", (ImTextureID)(intptr_t)spriteSheet, imageSize, { 0, 1 }, { 1, 0 });
+	// path selection for spritesheet to save
+	{
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, buttonPadding);
 
-		ImGui::PopStyleColor(2);
+		ImGui::SetCursorScreenPos(cursorPos);
+		ImGui::InputText("##pathselector", &m_SpriteSheetPath);
+
 		ImGui::PopStyleVar();
+	}
+
+	// button for path selection dialog
+	{
+		ImGui::SameLine(0.0f, 10.0f);
+		const auto folderSelectionIconId = (ImTextureID)(intptr_t)m_FolderSelectionImage->GetRendererId();
+
+		if (ImGui::ImageButton("uploadImageButton", folderSelectionIconId, { buttonSize.y - 10.0f, buttonSize.y - 10.0f }, { 0, 1 }, { 1, 0 })) {
+			Quirk::FileDialogSpecification fileDialogSpec;
+			fileDialogSpec.Title         = L"Location to Save SpriteSheet";
+			fileDialogSpec.FileNameLabel = L"SpriteSheet Folder";
+			fileDialogSpec.ParentWindow  = &GetWindow();
+
+			if (std::filesystem::path filePath; Quirk::FileDialog::OpenFolder(fileDialogSpec, filePath)) {
+				m_SpriteSheetPath = filePath.string();
+			}
+		}
+
+		ImGui::SameLine(0.0f, 10.0f);
+		cursorPos = ImGui::GetCursorScreenPos();
 	}
 
 	// export button
 	{
-		if (CustomTextButton(buttonLabel, buttonPos, buttonSize, buttonPadding)) {
+		if (CustomTextButton(buttonLabel, cursorPos, buttonSize, buttonPadding)) {
 			int imageDataSize = (int)m_PageWidth * (int)m_PageHeight * 4;
 			std::vector<uint8_t> imageData(imageDataSize);
 
 			m_SpriteSheet->GetColorPixelData(0, 0, 0, m_PageWidth, m_PageHeight, imageData.data(), imageDataSize * sizeof(uint8_t));
-
 			FlipImageVertically(imageData.data(), m_PageWidth, m_PageHeight, 4);
-			stbi_write_png(m_SpriteSheetName.c_str(), m_PageWidth, m_PageHeight, 4, imageData.data(), m_PageWidth * 4);
+
+			std::string spriteSheetImagePath      = m_SpriteSheetPath + "/" + m_SpriteSheetName + ".png";
+			std::string spriteSheetSerializedPath = m_SpriteSheetPath + "/" + m_SpriteSheetName + ".yaml";
+
+			stbi_write_png(spriteSheetImagePath.c_str(), m_PageWidth, m_PageHeight, 4, imageData.data(), m_PageWidth * 4);
+
+			PageSerializer serializer(m_PageWidth, m_PageHeight, m_SpriteSheetName, m_SpriteSheetScene);
+			serializer.SerializeSpriteSheet(spriteSheetSerializedPath.c_str());
 		}
 	}
 }
@@ -115,7 +149,7 @@ static bool CustomTextButton(const char* label, ImVec2 position, ImVec2 size, Im
 	const bool hovered  = ImGui::IsItemHovered();
 	const auto font     = Quirk::FontManager::GetFont(Quirk::FontWeight::Medium, 25);
 
-	const auto buttonColor = hovered ? (clicked ? 0xFF8f9d2a : 0xFF758519) : 0xFF8f9d2a;
+	const auto buttonColor = hovered ? (clicked ? 0xFF8f9d2a : 0xFF738317) : 0xFF8f9d2a;
 	
 	drawList->AddRectFilled(position, position + size, buttonColor, 3.0f);
 	drawList->AddText(font, font->FontSize, position + padding, 0xFF000000, label);

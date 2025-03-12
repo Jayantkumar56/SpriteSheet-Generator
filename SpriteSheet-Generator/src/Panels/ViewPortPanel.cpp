@@ -23,6 +23,8 @@ void ViewPortPanel::UnSetImguiProperties() {
 }
 
 void ViewPortPanel::OnImguiUiUpdate() {
+	m_IsInFocus = ImGui::IsWindowFocused();
+
 	auto  frame       = (SpriteGeneratorFrame*)GetParentFrame();
 	auto& currentPage = frame->GetCurrentPage();
 
@@ -50,7 +52,7 @@ void ViewPortPanel::OnImguiUiUpdate() {
 		}
 	}
 
-	// render the current frame to viewport
+	// render the current page to framebuffer
 	{
 		m_Frame->Bind();
 		m_Frame->ClearAttachments();
@@ -61,23 +63,19 @@ void ViewPortPanel::OnImguiUiUpdate() {
 		m_Frame->Unbind();
 	}
 
-	ImGui::PushStyleVar  (ImGuiStyleVar_FramePadding, { 0.0f, 0.0f });
-	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-	ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+	// showing the rendered image on the viewport
+	{
+		const auto buttonSize  = ImVec2((float)m_PanelWidth, (float)m_PanelHeight);
+		const auto imagePos    = ImGui::GetCursorPos();
+		const auto drawList    = ImGui::GetWindowDrawList();
+		const auto frameBuffer = (ImTextureID)(intptr_t)m_Frame->GetColorAttachment(0);
 
-	ImTextureID frameBuffer = (ImTextureID)(intptr_t)m_Frame->GetColorAttachment(0);
+		ImGui::SetNextItemAllowOverlap();
+		const bool imageClicked = ImGui::InvisibleButton("viewportimageButton", buttonSize, ImGuiButtonFlags_PressedOnClick);
+		drawList->AddImage(frameBuffer, cursorPos, cursorPos + buttonSize, { 0, 1 }, { 1, 0 });
 
-	ImGui::SetNextItemAllowOverlap();
-	bool clickedOnImage = ImGui::ImageButton(
-		"viewportimage",
-		frameBuffer,
-		ImVec2((float)m_PanelWidth, (float)m_PanelHeight),
-		{ 0, 1 },
-		{ 1, 0 }
-	);
-
-	ImGui::PopStyleColor(2);
-	ImGui::PopStyleVar();
+		HandleSpriteSelectionAndMovement(imageClicked, imagePos);
+	}
 
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);
 
@@ -127,6 +125,60 @@ void ViewPortPanel::OnImguiUiUpdate() {
 	}
 
 	ImGui::PopStyleVar();
+}
+
+int ViewPortPanel::GetEntityIdOnClick(const ImVec2& imagePos) {
+	auto&  window    = ((SpriteGeneratorFrame*)GetParentFrame())->GetWindow();
+	ImVec2 windowPos = ImGui::GetWindowPos();
+
+	windowPos       = { windowPos.x - window.GetPosX(), windowPos.y - window.GetPosY() };
+	ImVec2 mousePos = { Quirk::Input::MouseCurrentX() - windowPos.x, Quirk::Input::MouseCurrentY() - windowPos.y };
+
+	// mouse position on the image button
+	mousePos = { mousePos.x - imagePos.x, mousePos.y - imagePos.y };
+	// inverting the y axis for mouse coords
+	// 2 added because of slight visual error		TO DO: find this error
+	mousePos.y = m_PanelHeight - mousePos.y - 2;
+
+	int entityId = 0;
+	m_Frame->GetColorPixelData(1, (int)mousePos.x, (int)mousePos.y, 1, 1, &entityId, sizeof(entityId));
+
+	return entityId;
+}
+
+void ViewPortPanel::HandleSpriteSelectionAndMovement(const bool clickedOnViewPort, const ImVec2& viewportImageButtonPos) {
+	auto  frame       = (SpriteGeneratorFrame*)GetParentFrame();
+	auto& currentPage = frame->GetCurrentPage();
+
+	if (currentPage == nullptr)
+		return;
+
+	if (clickedOnViewPort) {										// selecting sprite on click
+		const auto entityId       = GetEntityIdOnClick(viewportImageButtonPos);
+		auto       selectedSprite = (entityId == -1) ? Quirk::Entity() : Quirk::Entity((entt::entity)entityId, currentPage->GetScene());
+
+		currentPage->SetSelectedEntity(selectedSprite);
+
+		if (!selectedSprite.IsInvalidEntity()) {
+			const auto  mousePos  = glm::vec2(Quirk::Input::MouseCurrentX(), Quirk::Input::MouseCurrentY());
+			const auto& spritePos = selectedSprite.GetComponent<Quirk::TransformComponent>().Translation;
+
+			m_RelativeSpritePos.x = mousePos.x - spritePos.x;
+			m_RelativeSpritePos.y = mousePos.y - spritePos.y;
+		}
+	}
+	else if (ImGui::IsItemActive()) {						// moving sprite on mouse draging
+		auto mousePos       = glm::vec2(Quirk::Input::MouseCurrentX(), Quirk::Input::MouseCurrentY());
+		auto selectedSprite = currentPage->GetSelectedEntity();
+
+		if (!selectedSprite.IsInvalidEntity() && m_PreviousMousePos != mousePos) {
+			m_PreviousMousePos = mousePos;
+
+			auto& spritePos = selectedSprite.GetComponent<Quirk::TransformComponent>().Translation;
+			spritePos.x     = mousePos.x - m_RelativeSpritePos.x;
+			spritePos.y     = mousePos.y - m_RelativeSpritePos.y;
+		}
+	}
 }
 
 static bool CustomDragInt2(int id, const char* labelX, int* valueX, const char* labelY, int* valueY,

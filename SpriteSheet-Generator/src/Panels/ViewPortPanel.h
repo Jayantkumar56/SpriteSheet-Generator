@@ -25,8 +25,19 @@ public:
 	virtual void UnSetImguiProperties() override;
 	virtual void OnImguiUiUpdate()      override;
 
+	auto GetWidth()  const noexcept { return m_PanelWidth;  }
+	auto GetHeight() const noexcept { return m_PanelHeight; }
+
+private:
+	int  GetEntityIdOnClick               (const ImVec2& imagePos);
+	void HandleSpriteSelectionAndMovement (const bool clickedOnViewPort, const ImVec2& viewportImageButtonPos);
+
 private:
 	uint16_t m_PanelWidth, m_PanelHeight;
 	bool	 m_IsInFocus;
 	Quirk::Ref<Quirk::FrameBuffer> m_Frame;
+
+	glm::vec2 m_PreviousMousePos{ 0.0f, 0.0f };
+	// position of selected sprite relative to the mouse position
+	glm::vec2 m_RelativeSpritePos{ 0.0f, 0.0f };
 };
