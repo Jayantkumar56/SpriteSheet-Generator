@@ -19,6 +19,7 @@ public:
 	void OnViewportResize(uint32_t width, uint32_t height);
 	void SetOrthographicSize(float width, float height);
 
+	glm::vec2 GetViewPortSize() const;
 	inline glm::mat4 GetProjectionView() const { return m_ProjectionMatrix * m_ViewMatrix; }
 
 private:

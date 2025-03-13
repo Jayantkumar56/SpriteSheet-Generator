@@ -22,6 +22,7 @@ public:
 	inline Quirk::Scene* GetScene()   noexcept { return &m_Scene;          }
 	inline const auto    GetSprites()          { return m_Scene.GetRegistry().view<Quirk::SpriteRendererComponent>(); }
 
+	inline const auto& GetCamera()                      const noexcept { return m_Camera; }
 	inline auto GetSelectedEntity()                     const noexcept { return m_SelectedEntity;                  }
 	inline void SetSelectedEntity(Quirk::Entity entity)       noexcept { m_SelectedEntity = entity;                }
 	inline void OnViewportResize(uint32_t width, uint32_t height)      { m_Camera.OnViewportResize(width, height); }

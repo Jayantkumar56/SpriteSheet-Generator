@@ -35,11 +35,20 @@ void EditorCamera::SetOrthographicSize(float width, float height) {
 
 	m_ProjectionMatrix = glm::ortho(
 		-(m_OrthographicSize * m_AspectRatio), m_OrthographicSize * m_AspectRatio,
-		1.0f * m_OrthographicSize, -m_OrthographicSize,
+		m_OrthographicSize, -m_OrthographicSize,
 		-1.0f, 1.0f
 	);
 
 	m_Position   = glm::vec3(0.5f * width, 0.5f * height, 0.0f);
 	m_ViewMatrix = glm::translate(glm::mat4(1.0f), m_Position);
 	m_ViewMatrix = glm::inverse(m_ViewMatrix);
+}
+
+glm::vec2 EditorCamera::GetViewPortSize() const {
+	glm::vec2 size = {
+		(m_OrthographicSize * m_AspectRatio) + (m_OrthographicSize * m_AspectRatio),
+		m_OrthographicSize + m_OrthographicSize,
+	};
+
+	return size;
 }

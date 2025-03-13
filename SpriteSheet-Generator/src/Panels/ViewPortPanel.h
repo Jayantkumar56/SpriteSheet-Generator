@@ -32,6 +32,8 @@ private:
 	int  GetEntityIdOnClick               (const ImVec2& imagePos);
 	void HandleSpriteSelectionAndMovement (const bool clickedOnViewPort, const ImVec2& viewportImageButtonPos);
 
+	glm::vec2 CalculateSpriteMoveSpeed();
+
 private:
 	uint16_t m_PanelWidth, m_PanelHeight;
 	bool	 m_IsInFocus;

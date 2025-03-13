@@ -90,9 +90,9 @@ void ViewPortPanel::OnImguiUiUpdate() {
 			cursorPos.x += 0.5f * (windowWidth - 400.0f);
 			cursorPos.y += 10.0f;
 
-			ImGui::PushStyleColor(ImGuiCol_FrameBg,            { 0.102f, 0.102f, 0.102f, 1.0f });
-			ImGui::PushStyleColor(ImGuiCol_FrameBgHovered,     { 0.102f, 0.102f, 0.102f, 1.0f });
-			ImGui::PushStyleColor(ImGuiCol_FrameBgActive,      { 0.102f, 0.102f, 0.102f, 1.0f });
+			ImGui::PushStyleColor(ImGuiCol_FrameBg,        { 0.102f, 0.102f, 0.102f, 1.0f });
+			ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, { 0.102f, 0.102f, 0.102f, 1.0f });
+			ImGui::PushStyleColor(ImGuiCol_FrameBgActive,  { 0.102f, 0.102f, 0.102f, 1.0f });
 
 			ImGui::SetCursorScreenPos(cursorPos);
 			if (CustomDragInt2(0, "W", &width, "H", &height, fontMedium22, fontRegular22, 1, INT16_MAX)) {
@@ -163,8 +163,9 @@ void ViewPortPanel::HandleSpriteSelectionAndMovement(const bool clickedOnViewPor
 			const auto  mousePos  = glm::vec2(Quirk::Input::MouseCurrentX(), Quirk::Input::MouseCurrentY());
 			const auto& spritePos = selectedSprite.GetComponent<Quirk::TransformComponent>().Translation;
 
-			m_RelativeSpritePos.x = mousePos.x - spritePos.x;
-			m_RelativeSpritePos.y = mousePos.y - spritePos.y;
+			auto spriteMoveSpeed  = CalculateSpriteMoveSpeed();
+			m_RelativeSpritePos.x = spriteMoveSpeed.x * mousePos.x - spritePos.x;
+			m_RelativeSpritePos.y = spriteMoveSpeed.y * mousePos.y - spritePos.y;
 		}
 	}
 	else if (ImGui::IsItemActive()) {						// moving sprite on mouse draging
@@ -174,11 +175,23 @@ void ViewPortPanel::HandleSpriteSelectionAndMovement(const bool clickedOnViewPor
 		if (!selectedSprite.IsInvalidEntity() && m_PreviousMousePos != mousePos) {
 			m_PreviousMousePos = mousePos;
 
+			auto spriteMoveSpeed = CalculateSpriteMoveSpeed();
 			auto& spritePos = selectedSprite.GetComponent<Quirk::TransformComponent>().Translation;
-			spritePos.x     = mousePos.x - m_RelativeSpritePos.x;
-			spritePos.y     = mousePos.y - m_RelativeSpritePos.y;
+			spritePos.x     = spriteMoveSpeed.x * mousePos.x - m_RelativeSpritePos.x;
+			spritePos.y     = spriteMoveSpeed.y * mousePos.y - m_RelativeSpritePos.y;
 		}
 	}
+}
+
+glm::vec2 ViewPortPanel::CalculateSpriteMoveSpeed() {
+	auto  frame       = (SpriteGeneratorFrame*)GetParentFrame();
+	auto& currentPage = frame->GetCurrentPage();
+
+	glm::vec2 viewPortSize       = { m_PanelWidth, m_PanelHeight };
+	glm::vec2 cameraViewPortSize = currentPage->GetCamera().GetViewPortSize();
+
+	glm::vec2 requiredSpeed = cameraViewPortSize / viewPortSize;
+	return requiredSpeed;
 }
 
 static bool CustomDragInt2(int id, const char* labelX, int* valueX, const char* labelY, int* valueY,
