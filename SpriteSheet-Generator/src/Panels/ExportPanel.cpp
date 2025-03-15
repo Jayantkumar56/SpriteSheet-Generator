@@ -15,22 +15,20 @@ ExportPanel::ExportPanel(Quirk::Ref<Page> currentPage) :
 		Panel                  ( "Export Panel"                                         ),
 		m_SpriteSheetPath      ( std::filesystem::current_path().string()               ),
 		m_FolderSelectionImage ( Quirk::Texture2D::Create("assets/Images/Download.png") ),
-		m_SpriteSheetName      ( currentPage->GetName()                                 ),
-		m_SpriteSheetScene     ( Quirk::Scene::Copy(currentPage->GetScene())            )
+		m_Page                 ( std::move(currentPage)                                 )
 {
 	SetWindowFlags(ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse);
 
-	m_PageWidth   = currentPage->GetWidth();
-	m_PageHeight  = currentPage->GetHeight();
-	m_SpriteSheet = Quirk::FrameBuffer::Create({ m_PageWidth, m_PageHeight });
+	m_SpriteSheet = Quirk::FrameBuffer::Create({ m_Page->GetWidth(), m_Page->GetHeight() });
 
 	m_SpriteSheet->SetAttachments({
-		{ Quirk::FrameBufferTextureType::RGBA_8,			 {.RGBA = {0.094f, 0.227f, 0.216f, 1.0f} } },
-		{ Quirk::FrameBufferTextureType::DEPTH_24_STENCIL_8, {.DepthValue = 1.0f }					   }
+		{ Quirk::FrameBufferTextureType::RGBA_8,			 {.RGBA = {0.0f, 0.0f, 0.0f, 0.0f} } },
+		{ Quirk::FrameBufferTextureType::DEPTH_24_STENCIL_8, {.DepthValue = 1.0f }				 }
 	});
 
 	m_SpriteSheet->Bind();
-	currentPage->RenderSpriteSheet();
+	m_SpriteSheet->ClearAttachments();
+	m_Page->RenderSpriteSheet();
 	m_SpriteSheet->Unbind();
 }
 
@@ -68,7 +66,7 @@ void ExportPanel::OnImguiUiUpdate() {
 		availableRegion.y - buttonSize.y - (2 * windowPadding.y) - imageButtonSpacing
 	};
 
-	const auto pageAspectRatio        = (float)m_PageWidth / (float)m_PageHeight;
+	const auto pageAspectRatio        = (float)m_Page->GetWidth()/ (float)m_Page->GetHeight();
 	const auto imageRegionAspectRatio = imageAvailRegion.x / imageAvailRegion.y;
 
 	ImVec2 imageSize = { imageAvailRegion.y * pageAspectRatio, imageAvailRegion.y };
@@ -123,18 +121,22 @@ void ExportPanel::OnImguiUiUpdate() {
 	// export button
 	{
 		if (CustomTextButton(buttonLabel, cursorPos, buttonSize, buttonPadding)) {
-			int imageDataSize = (int)m_PageWidth * (int)m_PageHeight * 4;
+			int width  = m_Page->GetWidth();
+			int height = m_Page->GetHeight();
+
+			int imageDataSize = width * height * 4;
 			std::vector<uint8_t> imageData(imageDataSize);
 
-			m_SpriteSheet->GetColorPixelData(0, 0, 0, m_PageWidth, m_PageHeight, imageData.data(), imageDataSize * sizeof(uint8_t));
-			FlipImageVertically(imageData.data(), m_PageWidth, m_PageHeight, 4);
+			m_SpriteSheet->GetColorPixelData(0, 0, 0, width, height, imageData.data(), imageDataSize * sizeof(uint8_t));
+			FlipImageVertically(imageData.data(), width, height, 4);
 
-			std::string spriteSheetImagePath      = m_SpriteSheetPath + "/" + m_SpriteSheetName + ".png";
-			std::string spriteSheetSerializedPath = m_SpriteSheetPath + "/" + m_SpriteSheetName + ".yaml";
+			auto& spriteSheetName = m_Page->GetName();
+			std::string spriteSheetImagePath      = m_SpriteSheetPath + "/" + spriteSheetName + ".png";
+			std::string spriteSheetSerializedPath = m_SpriteSheetPath + "/" + spriteSheetName + ".yaml";
 
-			stbi_write_png(spriteSheetImagePath.c_str(), m_PageWidth, m_PageHeight, 4, imageData.data(), m_PageWidth * 4);
+			stbi_write_png(spriteSheetImagePath.c_str(), width, height, 4, imageData.data(), width * 4);
 
-			PageSerializer serializer(m_PageWidth, m_PageHeight, m_SpriteSheetName, m_SpriteSheetScene);
+			PageSerializer serializer(m_Page);
 			serializer.SerializeSpriteSheet(spriteSheetSerializedPath.c_str());
 		}
 	}

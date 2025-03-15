@@ -74,7 +74,8 @@ void ViewPortPanel::OnImguiUiUpdate() {
 		const bool imageClicked = ImGui::InvisibleButton("viewportimageButton", buttonSize, ImGuiButtonFlags_PressedOnClick);
 		drawList->AddImage(frameBuffer, cursorPos, cursorPos + buttonSize, { 0, 1 }, { 1, 0 });
 
-		HandleSpriteSelectionAndMovement(imageClicked, imagePos);
+		if (!Quirk::Input::IsKeyPressed(QK_Key_Alt))
+			HandleSpriteSelectionAndMovement(imageClicked, imagePos);
 	}
 
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);
@@ -161,7 +162,8 @@ void ViewPortPanel::HandleSpriteSelectionAndMovement(const bool clickedOnViewPor
 
 		if (!selectedSprite.IsInvalidEntity()) {
 			const auto  mousePos  = glm::vec2(Quirk::Input::MouseCurrentX(), Quirk::Input::MouseCurrentY());
-			const auto& spritePos = selectedSprite.GetComponent<Quirk::TransformComponent>().Translation;
+			//const auto& spritePos = selectedSprite.GetComponent<Quirk::TransformComponent>().Translation;
+			const auto spritePos = currentPage->GetSelectedSpritePos();
 
 			auto spriteMoveSpeed  = CalculateSpriteMoveSpeed();
 			m_RelativeSpritePos.x = spriteMoveSpeed.x * mousePos.x - spritePos.x;
@@ -175,10 +177,13 @@ void ViewPortPanel::HandleSpriteSelectionAndMovement(const bool clickedOnViewPor
 		if (!selectedSprite.IsInvalidEntity() && m_PreviousMousePos != mousePos) {
 			m_PreviousMousePos = mousePos;
 
-			auto spriteMoveSpeed = CalculateSpriteMoveSpeed();
-			auto& spritePos = selectedSprite.GetComponent<Quirk::TransformComponent>().Translation;
-			spritePos.x     = spriteMoveSpeed.x * mousePos.x - m_RelativeSpritePos.x;
-			spritePos.y     = spriteMoveSpeed.y * mousePos.y - m_RelativeSpritePos.y;
+			const auto spriteMoveSpeed = CalculateSpriteMoveSpeed();
+			auto       spritePos       = currentPage->GetSelectedSpritePos();
+
+			spritePos.x     = (float)(int)(spriteMoveSpeed.x * mousePos.x - m_RelativeSpritePos.x);
+			spritePos.y     = (float)(int)(spriteMoveSpeed.y * mousePos.y - m_RelativeSpritePos.y);
+
+			currentPage->SetSelectedSpritePos(spritePos);
 		}
 	}
 }

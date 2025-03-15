@@ -13,13 +13,9 @@ public:
 	virtual void OnImguiUiUpdate()      override;
 
 private:
-	uint16_t m_PageWidth;
-	uint16_t m_PageHeight;
-
 	std::string m_SpriteSheetPath;
 	Quirk::Ref<Quirk::Texture2D> m_FolderSelectionImage;
 
-	std::string m_SpriteSheetName;
+	Quirk::Ref<Page> m_Page;
 	Quirk::Ref<Quirk::FrameBuffer> m_SpriteSheet;
-	Quirk::Ref<Quirk::Scene> m_SpriteSheetScene;
 };

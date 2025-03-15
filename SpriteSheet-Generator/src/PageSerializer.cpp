@@ -21,11 +21,8 @@ namespace YAML {
 
 }
 
-PageSerializer::PageSerializer(uint16_t width, uint16_t height, std::string name, Quirk::Ref<Quirk::Scene> scene) :
-		m_Width            ( width            ),
-		m_Height           ( height           ),
-		m_SpriteSheetName  ( std::move(name)  ),
-		m_SpriteSheetScene ( std::move(scene) )
+PageSerializer::PageSerializer(Quirk::Ref<Page> page) :
+		m_Page(std::move(page))
 {
 }
 
@@ -37,17 +34,18 @@ bool PageSerializer::SerializeSpriteSheet(const std::filesystem::path filePath) 
 		{
 			out << YAML::BeginMap; // spritesheet
 
-			out << YAML::Key << "Width"  << YAML::Value << m_Width;
-			out << YAML::Key << "Height" << YAML::Value << m_Height;
+			out << YAML::Key << "Width"  << YAML::Value << m_Page->GetWidth();
+			out << YAML::Key << "Height" << YAML::Value << m_Page->GetHeight();
 
 			// serializing all the sprites
 			{
 				out << YAML::Key << "Sprites" << YAML::BeginSeq;
 
-				auto spritesView = m_SpriteSheetScene->GetRegistry().view<entt::entity>();
+				auto  spritesView  = m_Page->GetSprites();
+				auto* spritesScene = m_Page->GetScene();
 
 				for (auto entity : spritesView) {
-					Quirk::Entity spriteToSerialize = { entity, m_SpriteSheetScene.get() };
+					Quirk::Entity spriteToSerialize = { entity, spritesScene };
 					if (!spriteToSerialize)
 						break;
 
@@ -68,24 +66,31 @@ bool PageSerializer::SerializeSpriteSheet(const std::filesystem::path filePath) 
 	return true;
 }
 
-void PageSerializer::SerializeSprite(YAML::Emitter& emitter, Quirk::Entity entity) const {
+void PageSerializer::SerializeSprite(YAML::Emitter& emitter, Quirk::Entity sprite) const {
 	emitter << YAML::BeginMap;
 
-	if (entity.HasComponent<Quirk::TagComponent>()) {
-		emitter << YAML::Key << "Name" << YAML::Value << entity.GetComponent<Quirk::TagComponent>().Tag;
+	// name of the sprite
+	{
+		emitter << YAML::Key << "Name" << YAML::Value << sprite.GetComponent<Quirk::TagComponent>().Tag;
 	}
 
-	if (entity.HasComponent<Quirk::TransformComponent>()) {
-		auto& component = entity.GetComponent<Quirk::TransformComponent>();
+	// position of the sprite
+	{
+		auto position = m_Page->GetSpritePos(sprite);
 
-		float u = std::max(0.0f, component.Translation.x - (component.Scale.x * 0.5f));
-		float v = std::max(0.0f, component.Translation.y - (component.Scale.y * 0.5f));
+		float u = std::max(0.0f, position.x);
+		float v = std::max(0.0f, position.y);
 
 		emitter << YAML::Key << "U" << YAML::Value << u;
 		emitter << YAML::Key << "V" << YAML::Value << v;
+	}
 
-		emitter << YAML::Key << "Width"  << YAML::Value << component.Scale.x;
-		emitter << YAML::Key << "Height" << YAML::Value << component.Scale.y;
+	// size of the sprite
+	{
+		auto size = m_Page->GetSpriteSize(sprite);
+
+		emitter << YAML::Key << "Width"  << YAML::Value << size.x;
+		emitter << YAML::Key << "Height" << YAML::Value << size.y;
 	}
 
 	emitter << YAML::EndMap;

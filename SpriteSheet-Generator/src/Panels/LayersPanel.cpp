@@ -6,6 +6,8 @@
 #include "LayersPanel.h"
 #include "Frame.h"
 
+#include <algorithm>
+
 static bool CustomTextButton(const char* label, int id, ImFont* font, const ImVec2 pos, const ImVec2 padding, const ImVec2 size, ImU32 color);
 
 void LayersPanel::SetImguiProperties(){

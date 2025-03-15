@@ -71,11 +71,9 @@ void InspectorPanel::OnImguiUiUpdate() {
 			cursorPos.y += ImGui::GetTextLineHeightWithSpacing() + 12.0f;
 			ImGui::SetCursorScreenPos(cursorPos);
 
-			float u = spriteTransforms.Translation.x - (spriteTransforms.Scale.x * 0.5f);
-			float v = spriteTransforms.Translation.y - (spriteTransforms.Scale.y * 0.5f);
-			if (CustomDragFloat2(0, "U", &u, "V", &v, fontMedium22, fontRegular22)) {
-				spriteTransforms.Translation.x = u + (spriteTransforms.Scale.x * 0.5f);
-				spriteTransforms.Translation.y = v + (spriteTransforms.Scale.y * 0.5f);
+			auto position = currentPage->GetSelectedSpritePos();
+			if (CustomDragFloat2(0, "U", &position.x, "V", &position.y, fontMedium22, fontRegular22)) {
+				currentPage->SetSelectedSpritePos(position);
 			}
 
 			cursorPos.y += ImGui::GetTextLineHeightWithSpacing() + 20.0f;
@@ -90,7 +88,10 @@ void InspectorPanel::OnImguiUiUpdate() {
 			cursorPos.y += ImGui::GetTextLineHeightWithSpacing() + 12.0f;
 			ImGui::SetCursorScreenPos(cursorPos);
 
-			CustomDragFloat2(1, "W", &spriteTransforms.Scale.x, "H", &spriteTransforms.Scale.y, fontMedium22, fontRegular22, 0.0f, FLT_MAX);
+			auto size = currentPage->GetSelectedSpriteSize();
+			if (CustomDragFloat2(1, "W", &size.x, "H", &size.y, fontMedium22, fontRegular22, 0.0f, FLT_MAX)) {
+				currentPage->SetSelectedSpriteSize(size);
+			}
 
 			cursorPos.y += ImGui::GetTextLineHeightWithSpacing() + 20.0f;
 			drawList->AddLine({ windowPos.x, cursorPos.y }, { windowPos.x + windowWidth, cursorPos.y }, 0xFF303030);
@@ -189,6 +190,8 @@ void InspectorPanel::OnImguiUiUpdate() {
 						std::filesystem::path filePath;
 						if (Quirk::FileDialog::OpenFile(fileDialogSpec, filePath)) {
 							spriteRendererComponent.Texture = Quirk::Texture2D::Create(filePath);
+							glm::vec2 imageSize = { spriteRendererComponent.Texture->GetWidth(), spriteRendererComponent.Texture->GetHeight() };
+							currentPage->SetSelectedSpriteSize(imageSize);
 						}
 					}
 					if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_NoSharedDelay)) {
